@@ -1,0 +1,241 @@
+---
+title: "BME 590.04 Final Project P1"
+output: html_document
+---
+
+```{r}
+library(dplyr)
+library(readr)
+library(data.table)
+library(plyr)
+library(readr)
+library(tidyverse)
+library(caret)
+library(stats)
+library(ggplot2)
+library(ggpubr)
+library(cluster)
+library(factoextra)
+library(mclust)
+library(rpart)
+library(randomForest)
+library(Hmisc)
+library(GGally)
+library (ISLR, MASS)
+library(corrplot)
+library(car)
+library(caTools)
+library(WVPlots)
+
+features <- read.csv("/Users/nickolascox/Desktop/yes/DataSubjectsInfo.csv")
+participants <- paste("p", 1:24, sep = "")
+features$code <- participants
+colnames(features) <- c("Participant","Weight","Height","Age","Gender")
+
+setwd("~/Desktop/yes/DM_data/std_14")
+folder = "~/Desktop/yes/DM_data/std_14"
+myfiles = list.files(path=folder, pattern="*.csv")
+
+p1 = merge(ldply(myfiles[1], read_csv), features[1,2:4]) 
+p2 = merge(ldply(myfiles[2], read_csv), features[2,2:4])
+p3 = merge(ldply(myfiles[3], read_csv), features[3,2:4])
+p4 = merge(ldply(myfiles[4], read_csv), features[4,2:4])
+p5 = merge(ldply(myfiles[5], read_csv), features[5,2:4])
+p6 = merge(ldply(myfiles[6], read_csv), features[6,2:4])
+p7 = merge(ldply(myfiles[7], read_csv), features[7,2:4])
+p8 = merge(ldply(myfiles[8], read_csv), features[8,2:4])
+p9 = merge(ldply(myfiles[9], read_csv), features[9,2:4])
+p10 = merge(ldply(myfiles[10], read_csv), features[10,2:4])
+p11 = merge(ldply(myfiles[11], read_csv), features[11,2:4])
+p12 = merge(ldply(myfiles[12], read_csv), features[12,2:4])
+p13 = merge(ldply(myfiles[13], read_csv), features[13,2:4])
+p14 = merge(ldply(myfiles[14], read_csv), features[14,2:4])
+p15 = merge(ldply(myfiles[15], read_csv), features[15,2:4])
+p16 = merge(ldply(myfiles[16], read_csv), features[16,2:4])
+p17 = merge(ldply(myfiles[17], read_csv), features[17,2:4])
+p18 = merge(ldply(myfiles[18], read_csv), features[18,2:4])
+p19 = merge(ldply(myfiles[19], read_csv), features[19,2:4])
+p20 = merge(ldply(myfiles[20], read_csv), features[20,2:4])
+p21 = merge(ldply(myfiles[21], read_csv), features[21,2:4])
+p22 = merge(ldply(myfiles[22], read_csv), features[22,2:4])
+p23 = merge(ldply(myfiles[23], read_csv), features[23,2:4])
+p24 = merge(ldply(myfiles[24], read_csv), features[24,2:4])
+
+p1$Gender = "Male"
+p2$Gender = "Male"
+p3$Gender = "Female"
+p4$Gender = "Male"
+p5$Gender = "Female"
+p6$Gender = "Male"
+p7$Gender = "Female"
+p8$Gender = "Female"
+p9$Gender = "Male"
+p10$Gender = "Female"
+p11$Gender = "Male"
+p12$Gender = "Male"
+p13$Gender = "Male"
+p14$Gender = "Male"
+p15$Gender = "Male"
+p16$Gender = "Female"
+p17$Gender = "Male"
+p18$Gender = "Female"
+p19$Gender = "Female"
+p20$Gender = "Male"
+p21$Gender = "Male"
+p22$Gender = "Male"
+p23$Gender = "Female"
+p24$Gender = "Female"
+
+my.list <- list(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20, p21, p22, p23, p24)
+names(my.list) <- c("p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9", "p10", "p11", "p12", "p13", "p14", "p15", "p16", "p17", "p18", "p19", "p20", "p21", "p22", "p23", "p24")
+
+pall = ldply(my.list)
+
+# Sample data taken at 50 Hz
+p1$Time <- p1$X1/50 #Male 
+p1 <- select(p1, -X1)
+p16$Time <- p16$X1/50 #Female
+p16 <- select(p16, -X1)
+
+pn <- rbind(p1, p16)
+pall$Time <- pall$X1/50 #All
+pall <- select(pall, -X1)
+
+df1 <- data.frame(p1$Time ,p1$userAcceleration.x,p1$userAcceleration.y, p1$userAcceleration.z)
+names(df1) <- c("Time", "stdaccelx", "stdaccely", "stdaccelz")
+df2 <- data.frame(p16$Time ,p16$userAcceleration.x,p16$userAcceleration.y, p16$userAcceleration.z)
+names(df2) <- c("Time", "stdaccelx", "stdaccely", "stdaccelz")
+dfn <- data.frame(pn$Time ,pn$userAcceleration.x,pn$userAcceleration.y, pn$userAcceleration.z, pn$Gender)
+names(dfn) <- c("Time", "stdaccelx", "stdaccely", "stdaccelz", "Gender")
+dfall <- data.frame(pall$Time ,pall$userAcceleration.x,pall$userAcceleration.y, pall$userAcceleration.z, pall$Gender)
+names(dfall) <- c("Time", "stdaccelx", "stdaccely", "stdaccelz", "Gender")
+
+dfx <- data.frame(select(dfall, -c("stdaccely","stdaccelz")))
+dfy <- data.frame(select(dfall, -c("stdaccelx","stdaccelz")))
+dfz <- data.frame(select(dfall, -c("stdaccelx","stdaccely")))
+
+dfx$Direction <- "x"
+names(dfx) <- c("Time", "Motion", "Gender", "Direction")
+dfy$Direction <- "y"
+names(dfy) <- c("Time", "Motion", "Gender", "Direction")
+dfz$Direction <- "z"
+names(dfz) <- c("Time", "Motion", "Gender", "Direction")
+
+a<- rbind(dfx,dfy)
+b<- rbind(a,dfz)
+
+data1 <- data.frame(select(df1, -Time))
+data2 <- data.frame(select(df2, -Time))
+datapn <- data.frame(select(dfn, -c(Time,Gender,stdaccely,stdaccelz)))
+#dataall <- data.frame(select(dfall, -Time))
+
+# Determination of Optimal Clusters for Kmeans 
+ # Elbow Method
+ elb1 <- fviz_nbclust(data1, kmeans, method = "wss") +
+    geom_vline(xintercept = 3, linetype = 2)+
+    labs(subtitle = "Elbow method", title="Optimal Number of Clusters (Male)")
+ elb2 <- fviz_nbclust(data2, kmeans, method = "wss") +
+    geom_vline(xintercept = 3, linetype = 2)+
+    labs(subtitle = "Elbow method", title="Optimal Number of Clusters (Female)")
+ 
+ print(elb1)
+ print(elb2)
+ fviz_nbclust(data1, kmeans, method = "wss") +
+    geom_vline(xintercept = 3, linetype = 2)+
+    labs(subtitle = "Elbow method", title="Optimal Number of Clusters (Male)")
+fviz_nbclust(data2, kmeans, method = "wss") +
+    geom_vline(xintercept = 3, linetype = 2)+
+    labs(subtitle = "Elbow method", title="Optimal Number of Clusters (Female)")
+ 
+ # Silhouette Method
+ sil1 <- fviz_nbclust(data1, kmeans, method = "silhouette")+
+    labs(subtitle = "Silhouette method")
+ sil2 <- fviz_nbclust(data2, kmeans, method = "silhouette")+
+    labs(subtitle = "Silhouette method")
+ 
+ # Gap Statistic Method
+ gap1 <- fviz_nbclust(data1, kmeans, nstart = 25,  method = "gap_stat", nboot = 50)+
+    labs(subtitle = "Gap statistic method")
+  gap2 <-fviz_nbclust(data2, kmeans, nstart = 25,  method = "gap_stat", nboot = 50)+
+    labs(subtitle = "Gap statistic method")
+ 
+ figure <- ggarrange(elb1, sil1, gap1,
+                    labels = c("A", "B", "C"),
+                    ncol = 2, nrow = 2)
+  figure2 <- ggarrange(elb2, sil2, gap2,
+                    labels = c("A", "B", "C"),
+                    ncol = 2, nrow = 2)
+print(figure)
+print(figure2)
+
+```
+
+```{r}
+ggboxplot(b, x = "Direction", y = "Motion", color = "Gender")+ labs(title="Motion Data vs Gender and Direction")
+
+ggplot(dfall, aes(Time)) +                    
+  geom_hex(aes(y=stdaccelx, color=Gender, show.legend = NA)) +  
+  geom_hex(aes(y=stdaccelx, color=Gender, alpha=0.4)) +
+  labs(title="Acceleration vs Time (X)", y="Acceleration (m/s^2)", x="Time (s)") 
+xmean <- tapply(dfall$stdaccelx , dfall$Gender, mean)
+ggplot(dfall, aes(Time)) +                    # basic graphical object
+  geom_hex(aes(y=stdaccely, color=Gender)) +  
+  geom_hex(aes(y=stdaccely, color=Gender, alpha=0.4))+
+  labs(title="Acceleration vs Time (Y)", y="Acceleration (m/s^2)", x="Time (s)") 
+ymean <- tapply(dfall$stdaccely , dfall$Gender, mean)
+ggplot(dfall, aes(Time)) +                    # basic graphical object
+  geom_hex(aes(y=stdaccelz, color=Gender)) +
+  geom_hex(aes(y=stdaccelz, color=Gender, alpha=0.4))+
+  labs(title="Acceleration vs Time (Z)", y="Acceleration (m/s^2)", x="Time (s)")
+zmean <- tapply(dfall$stdaccelz , dfall$Gender, mean)
+
+Cluster <- kmeans(dfall[,2], 2, nstart = 20)
+Cluster$cluster <- as.factor(Cluster$cluster)
+dfall$Cluster <- Cluster$cluster
+ggplot(dfall, aes(Time)) +                    # basic graphical object
+ geom_hex(aes(y=stdaccelx, color=Gender, alpha=0.4)) +
+ geom_hex(aes(y=stdaccelx, color=Cluster)) +
+ labs(title="Clustering Acceleration vs Time (X)", y="Acceleration (m/s^2)", x="Time (s)") 
+C1mean <- Cluster$centers
+C1test <- t.test(dfall$stdaccelx~dfall$Cluster)
+
+Cluster <- kmeans(dfall[,3], 2, nstart = 20)
+Cluster$cluster <- as.factor(Cluster$cluster)
+dfall$Cluster <- Cluster$cluster
+ggplot(dfall, aes(Time)) +                    # basic graphical object
+ geom_hex(aes(y=stdaccely, color=Gender, alpha=0.4)) +
+ geom_hex(aes(y=stdaccely, color=Cluster)) +
+ labs(title="Clustering Acceleration vs Time (Y)", y="Acceleration (m/s^2)", x="Time (s)") 
+C2mean <- Cluster$centers
+C2test <- t.test(dfall$stdaccely~dfall$Cluster)
+
+Cluster <- kmeans(dfall[,4], 2, nstart = 20)
+Cluster$cluster <- as.factor(Cluster$cluster)
+dfall$Cluster <- Cluster$cluster
+ggplot(dfall, aes(Time)) +                    # basic graphical object
+ geom_hex(aes(y=stdaccelz, color=Gender, alpha=0.4)) +
+ geom_hex(aes(y=stdaccelz, color=Cluster)) +
+ labs(title="Clustering Acceleration vs Time (Z)", y="Acceleration (m/s^2)", x="Time (s)") 
+C3mean <- Cluster$centers
+C3test <- t.test(dfall$stdaccelz~dfall$Cluster)
+
+std.aov2 <- aov(Motion ~ Direction * Gender, data = b)
+Anova(std.aov2, type = "III")
+summary(std.aov2)
+
+kruskal.test(Motion ~ Gender, data = b)
+
+TukeyHSD(std.aov2, which = "Gender")
+TukeyHSD(std.aov2, which = "Direction")
+
+#Check Homogeniety of Variances
+plot(std.aov2, 1)
+leveneTest(Motion ~ Gender*Direction, data = b)
+
+#Check Normality
+plot(std.aov2, 2)
+ggdensity(b$Motion,
+          main = "Density plot of ALL Motion Data",
+          xlab = "Motion Data")
+```
+

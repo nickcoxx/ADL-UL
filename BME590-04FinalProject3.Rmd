@@ -1,0 +1,146 @@
+---
+title: "bme590-04FinalProject3"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(readr)
+library(data.table)
+library(plyr)
+library(readr)
+library(tidyverse)
+library(caret)
+library(stats)
+library(ggplot2)
+library(ggpubr)
+library(cluster)
+library(factoextra)
+library(mclust)
+library(rpart)
+library(randomForest)
+library(Hmisc)
+library(GGally)
+library (ISLR, MASS)
+library(corrplot)
+library(car)
+library(caTools)
+library(WVPlots)
+
+features <- read.csv("/Users/nickolascox/Desktop/yes/DataSubjectsInfo.csv")
+participants <- paste("p", 1:24, sep = "")
+features$code <- participants
+colnames(features) <- c("Participant","Weight","Height","Age","Gender")
+
+setwd("~/Desktop/yes/DM_data/std_14")
+folder = "~/Desktop/yes/DM_data/std_14"
+myfiles = list.files(path=folder, pattern="*.csv")
+pallstd = ldply(myfiles, read_csv)
+pallstd2 = select(pallstd, c("X1", "userAcceleration.x","userAcceleration.y","userAcceleration.z"))
+pallstd2$Activity = "Standing"
+
+setwd("~/Desktop/yes/DM_data/wlk_15")
+folder = "~/Desktop/yes/DM_data/wlk_15"
+myfiles = list.files(path=folder, pattern="*.csv")
+pallwlk = ldply(myfiles, read_csv)
+pallwlk2 = select(pallwlk, c("X1","userAcceleration.x","userAcceleration.y","userAcceleration.z"))
+pallwlk2$Activity = "Walking"
+
+pall <- rbind(pallstd2, pallwlk2)
+pall$Time <- pall$X1/50 
+pall <- select(pall, -X1)
+
+dfall <- data.frame(pall$userAcceleration.x,pall$userAcceleration.y, pall$userAcceleration.z,pall$Activity, pall$Time)
+names(dfall) <- c("stdaccelx", "stdaccely", "stdaccelz","Activity","Time")
+
+dfx <- data.frame(select(dfall, -c("stdaccely","stdaccelz")))
+dfy <- data.frame(select(dfall, -c("stdaccelx","stdaccelz")))
+dfz <- data.frame(select(dfall, -c("stdaccelx","stdaccely")))
+
+dfx$Direction <- "x"
+names(dfx) <- c("Time", "Motion", "Activity", "Direction")
+dfy$Direction <- "y"
+names(dfy) <- c("Time", "Motion", "Activity", "Direction")
+dfz$Direction <- "z"
+names(dfz) <- c("Time", "Motion", "Activity", "Direction")
+
+a<- rbind(dfx,dfy)
+b<- rbind(a,dfz)
+names(b) <- c("Motion", "Activity", "Time","Direction")
+```
+
+```{r}
+ggboxplot(b, x = "Direction", y = "Motion", color = "Activity")+ labs(title="Motion Data vs Activity and Direction")
+
+ggplot(dfall, aes(Time)) +                    
+  geom_hex(aes(y=stdaccelx, color=Activity)) +  
+  geom_hex(aes(y=stdaccelx, color=Activity, alpha=0.4)) +
+  labs(title="Acceleration vs Time (X)", y="Acceleration (m/s^2)", x="Time (s)")  
+xmean <- tapply(dfall$stdaccelx , dfall$Activity, mean)
+ggplot(dfall, aes(Time)) +                    
+  geom_hex(aes(y=stdaccely, color=Activity)) +  
+  geom_hex(aes(y=stdaccely, color=Activity, alpha=0.4)) +
+  labs(title="Acceleration vs Time (Y)", y="Acceleration (m/s^2)", x="Time (s)") 
+ymean <- tapply(dfall$stdaccely , dfall$Activity, mean) 
+ggplot(dfall, aes(Time)) +                    
+  geom_hex(aes(y=stdaccelz, color=Activity)) +  
+  geom_hex(aes(y=stdaccelz, color=Activity, alpha=0.4)) +
+  labs(title="Acceleration vs Time (Z)", y="Acceleration (m/s^2)", x="Time (s)") 
+zmean <- tapply(dfall$stdaccelz , dfall$Activity, mean)
+
+Cluster <- kmeans(dfall[,1], 2, nstart = 20)
+Cluster$cluster <- as.factor(Cluster$cluster)
+dfall$Cluster <- Cluster$cluster
+ggplot(dfall, aes(Time)) +                    # basic graphical object
+ geom_hex(aes(y=stdaccelx, color=Activity, alpha=0.4)) +
+ geom_hex(aes(y=stdaccelx, color=Cluster)) +
+ labs(title="Clustering Acceleration vs Time (X)", y="Acceleration (m/s^2)", x="Time (s)") 
+C1mean <- Cluster$centers
+C1test <- t.test(dfall$stdaccelx~dfall$Cluster)
+
+Cluster <- kmeans(dfall[,2], 2, nstart = 20)
+Cluster$cluster <- as.factor(Cluster$cluster)
+dfall$Cluster <- Cluster$cluster
+ggplot(dfall, aes(Time)) +                    # basic graphical object
+ geom_hex(aes(y=stdaccely, color=Activity, alpha=0.4)) +
+ geom_hex(aes(y=stdaccely, color=Cluster)) +
+ labs(title="Clustering Acceleration vs Time (Y)", y="Acceleration (m/s^2)", x="Time (s)") 
+C2mean <- Cluster$centers
+C2test <- t.test(dfall$stdaccely~dfall$Cluster)
+
+Cluster <- kmeans(dfall[,3], 2, nstart = 20)
+Cluster$cluster <- as.factor(Cluster$cluster)
+dfall$Cluster <- Cluster$cluster
+ggplot(dfall, aes(Time)) +                    # basic graphical object
+ geom_hex(aes(y=stdaccelz, color=Activity, alpha=0.4)) +
+ geom_hex(aes(y=stdaccelz, color=Cluster)) +
+ labs(title="Clustering Acceleration vs Time (Z)", y="Acceleration (m/s^2)", x="Time (s)") 
+C3mean <- Cluster$centers
+C3test <- t.test(dfall$stdaccelz~dfall$Cluster)
+
+(C1mean[1]/xmean[1])*100
+(C1mean[2]/xmean[2])*100
+(C2mean[1]/ymean[1])*100
+(C2mean[2]/ymean[2])*100
+(C3mean[1]/zmean[1])*100
+(C3mean[2]/zmean[2])*100
+
+activity.aov2 <- aov(Motion ~ Direction * Activity, data = b)
+Anova(activity.aov2, type = "III")
+summary(activity.aov2)
+
+TukeyHSD(activity.aov2, which = "Activity")
+TukeyHSD(activity.aov2, which = "Direction")
+
+#Check Homogeniety of Variances
+plot(activity.aov2, 1)
+leveneTest(Motion ~ Activity*Direction, data = b)
+
+#Check Normality
+plot(activity.aov2, 2)
+ggdensity(b$Motion,
+          main = "Density plot of ALL Motion Data",
+          xlab = "Motion Data")
+
+
+```
